@@ -33,6 +33,8 @@ const sendPushNotification = async (expoPushToken, title, body, data = {}) => {
     // Check for errors in the response body (like "DeviceNotRegistered")
     if (result.data && result.data.status === 'error') {
         console.error('Expo Push Error:', result.data.message);
+    } else {
+        console.log('Push notification sent successfully:', result);
     }
     
     return result;
