@@ -141,6 +141,37 @@ router.get('/:id/queue', async (req, res) => {
     }
 });
 
+// @route   GET /api/canteens/:id/status
+// @desc    Get canteen open/close status
+// @access  Public
+router.get('/:id/status', async (req, res) => {
+    try {
+        const canteen = await Canteen.findById(req.params.id).select('_id name isOpen');
+
+        if (!canteen) {
+            return res.status(404).json({
+                success: false,
+                message: 'Canteen not found'
+            });
+        }
+
+        res.json({
+            success: true,
+            data: {
+                canteenId: canteen._id,
+                name: canteen.name,
+                isOpen: canteen.isOpen,
+                status: canteen.isOpen ? 'OPEN' : 'CLOSED'
+            }
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+});
+
 // @route   GET /api/canteens/:id
 // @desc    Get single canteen
 // @access  Public
@@ -291,10 +322,10 @@ router.post('/:id/toggle-open', protect, authorize('CANTEEN', 'ADMIN'), async (r
     }
 });
 
-// @route   POST /api/canteens/:id/toggle-status
-// @desc    Toggle canteen open/close status with secret key (Public endpoint)
+// @route   POST /api/canteens/:id/open
+// @desc    Open canteen with secret key (Public endpoint)
 // @access  Public (requires secret key in body)
-router.post('/:id/toggle-status', async (req, res) => {
+router.post('/:id/open', async (req, res) => {
     try {
         const { secretKey } = req.body;
 
@@ -315,16 +346,27 @@ router.post('/:id/toggle-status', async (req, res) => {
             });
         }
 
-        // Toggle the status
-        canteen.isOpen = !canteen.isOpen;
+        // Check if already open
+        if (canteen.isOpen) {
+            return res.status(200).json({
+                success: true,
+                data: canteen,
+                message: 'Canteen is already open',
+                changed: false
+            });
+        }
+
+        // Open the canteen
+        canteen.isOpen = true;
         await canteen.save();
 
-        console.log(`✅ Canteen ${canteen.name} toggled to ${canteen.isOpen ? 'OPEN' : 'CLOSED'} via secret key`);
+        console.log(`✅ Canteen ${canteen.name} opened via secret key`);
 
         res.json({
             success: true,
             data: canteen,
-            message: `Canteen is now ${canteen.isOpen ? 'OPEN' : 'CLOSED'}`
+            message: 'Canteen is now OPEN',
+            changed: true
         });
     } catch (error) {
         res.status(500).json({
@@ -334,6 +376,59 @@ router.post('/:id/toggle-status', async (req, res) => {
     }
 });
 
+// @route   POST /api/canteens/:id/close
+// @desc    Close canteen with secret key (Public endpoint)
+// @access  Public (requires secret key in body)
+router.post('/:id/close', async (req, res) => {
+    try {
+        const { secretKey } = req.body;
+
+        // Validate secret key
+        if (!secretKey || secretKey !== process.env.CANTEEN_TOGGLE_SECRET) {
+            return res.status(401).json({
+                success: false,
+                message: 'Invalid or missing secret key'
+            });
+        }
+
+        const canteen = await Canteen.findById(req.params.id);
+
+        if (!canteen) {
+            return res.status(404).json({
+                success: false,
+                message: 'Canteen not found'
+            });
+        }
+
+        // Check if already closed
+        if (!canteen.isOpen) {
+            return res.status(200).json({
+                success: true,
+                data: canteen,
+                message: 'Canteen is already closed',
+                changed: false
+            });
+        }
+
+        // Close the canteen
+        canteen.isOpen = false;
+        await canteen.save();
+
+        console.log(`✅ Canteen ${canteen.name} closed via secret key`);
+
+        res.json({
+            success: true,
+            data: canteen,
+            message: 'Canteen is now CLOSED',
+            changed: true
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+});
 
 // @route   POST /api/canteens/:id/toggle-online-orders
 // @desc    Toggle online orders enabled/disabled
